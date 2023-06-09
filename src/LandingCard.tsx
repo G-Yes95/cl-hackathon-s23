@@ -51,41 +51,44 @@ export default function LandingCard() {
 
       await Promise.all(events.map(async (item: any) => {
 
-        const vaultAddress = item.args.newVarVault;
+        const vaultAddress = item;
         const varVaultContract = new Contract(vaultAddress, VarVaultABI, web3provider);
 
         const vaultDecimals = parseInt(await varVaultContract.decimals());
         const vaultSupply = parseInt(await varVaultContract.totalSupply());
 
-        const assetOracleAddress = await varVaultContract.assetOracle();
-        const assetOracleContract = new Contract(assetOracleAddress, OracleABI, web3provider);
-        const assetOracleDecimals = await assetOracleContract.decimals();
-        const assetOraclePrice = await assetOracleContract.latestAnswer();
-        const assetPriceFloat = assetOraclePrice / (10 ** assetOracleDecimals);
-
-        const depositTokenContract = new Contract(item.args.depositToken, tokenABI, web3provider);
+        const depositTokenAddress = await varVaultContract.s_depositToken();
+        const depositTokenContract = new Contract(depositTokenAddress, tokenABI, web3provider);
         const depositTokenSymbol = (await depositTokenContract.symbol());
         const depositTokenDecimals = (await depositTokenContract.decimals());
         const vaultDepositBalance = await depositTokenContract.balanceOf(vaultAddress);
         const vaultDepositBalanceFloat = vaultDepositBalance / (10 ** depositTokenDecimals);
 
-        const assetTokenContract = new Contract(item.args.assetToken, tokenABI, web3provider);
+        const assetOracleAddress = await varVaultContract.s_priceOracle();
+        const assetOracleContract = new Contract(assetOracleAddress, OracleABI, web3provider);
+        const assetOracleDecimals = await assetOracleContract.decimals();
+        const assetOraclePrice = await assetOracleContract.latestAnswer();
+        const assetPriceFloat = assetOraclePrice / (10 ** assetOracleDecimals);
+
+        const assetTokenAddress = await varVaultContract.s_assetToken();
+        const assetTokenContract = new Contract(assetTokenAddress, tokenABI, web3provider);
         const assetTokenSymbol = (await assetTokenContract.symbol());
         const assetTokenDecimals = (await assetTokenContract.decimals());
         const vaultAssetBalance = await assetTokenContract.balanceOf(vaultAddress);
         const vaultAssetBalanceFloat = vaultAssetBalance / (10 ** assetTokenDecimals);
 
         const vaultValue = vaultDepositBalanceFloat + vaultAssetBalanceFloat * assetPriceFloat;
-
+        const varValue = await varVaultContract.latestResponse();
 
         tempVaults[vaultAddress] = {
           'address': vaultAddress,
           'depositToken': depositTokenSymbol,
-          'depositTokenAddr': item.args.depositToken,
+          'depositTokenAddr': depositTokenAddress,
           'assetToken': assetTokenSymbol,
-          'assetTokenAddr': item.args.assetToken,
+          'assetTokenAddr': assetTokenAddress,
           'depositsValue': formatAccounting(vaultSupply / (10 ** vaultDecimals)),
-          'vaultValue': formatAccounting(vaultValue)
+          'vaultValue': formatAccounting(vaultValue),
+          'varValue': (parseInt(varValue, 16) / 10000 * 100).toFixed(2) + '%'
         };
 
         if (!stables.includes(depositTokenSymbol)) {
@@ -105,22 +108,24 @@ export default function LandingCard() {
   useEffect(() => {
     const getEvents = async () => {
 
-      try {
-        const web3provider = new Web3Provider(window.ethereum);
-        const provider = new JsonRpcProvider('https://polygon-mumbai.g.alchemy.com/v2/NWs3F66Ad5DDc91N-5RVJSSd97xt_n4a');
+      // try {
+      //   const web3provider = new Web3Provider(window.ethereum);
+      //   const provider = new JsonRpcProvider('https://polygon-mumbai.g.alchemy.com/v2/NWs3F66Ad5DDc91N-5RVJSSd97xt_n4a');
 
-        const contractABI = VarVaultFactoryABI; // ABI array
-        const contractAddress = '0x80dE33bf0b9d7a52F97776e2Ff5f502E507b8544'; // Contract address
-        const contract = new Contract(contractAddress, contractABI, provider);
+      //   const contractABI = VarVaultFactoryABI; // ABI array
+      //   const contractAddress = '0x80dE33bf0b9d7a52F97776e2Ff5f502E507b8544'; // Contract address
+      //   const contract = new Contract(contractAddress, contractABI, provider);
 
-        const eventFilter = contract.filters.VarVaultDeployed();
-        const allEvents = await contract.queryFilter(eventFilter, 36248100);
+      //   const eventFilter = contract.filters.VarVaultDeployed();
+      //   const allEvents = await contract.queryFilter(eventFilter, 36248100);
 
-        setEvents(allEvents);
+      //   setEvents([allEvents]);
 
-      } catch (error) {
-        console.error('Failed to interact with contract:', error);
-      }
+      // } catch (error) {
+      //   console.error('Failed to interact with contract:', error);
+      // }
+
+      setEvents(['0x1EE846151609364776032DfaE68b84c28A384573', '0x1Ed75A54EDbD2ff6FcbF59D7231370498feEFf0B', '0xC0d10883A2fa2EfBc02869BC2541708376178176', '0x5E5D823Afa9310200f72b879bD6E2F9C1bC8B486']);
 
     };
 
@@ -152,9 +157,10 @@ export default function LandingCard() {
                   <div> Collateral:  </div> < div> {filteredVaults[selectedVault].assetToken} </div> </div>
 
                 <Box display="flex" flexDirection="column" marginTop={2} minWidth={300}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}> <div> Historical APY: </div> < div> 5% </div> </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}> <div> Asset VAR: </div> < div> {filteredVaults[selectedVault].varValue}</div> </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}> <div> Outstanding Deposits: </div> < div> {filteredVaults[selectedVault].depositsValue}</div> </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}> <div> Vault Value:</div> < div> {filteredVaults[selectedVault].vaultValue}</div> </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}> <div> Vault Details: </div> < div> <a href={`https://mumbai.polygonscan.com/address/${filteredVaults[selectedVault].address}`}> View on MumbaiScan </a></div> </div>
                 </Box>
                 <Box display="flex" justifyContent="space-between" marginTop={2}>
                   <Button variant="contained" onClick={() => setOpenModalWithdraw(true)}
